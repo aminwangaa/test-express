@@ -1,0 +1,26 @@
+[
+  {
+    "userName": "张三",
+    "id": 1,
+    "phone": 14444444444,
+    "hasPay": false,
+    "payId": 1234,
+    "payNum": 500,
+    "province": "浙江省",
+    "city": "温州市",
+    "area": "乐清市",
+    "password": "123456"
+  },
+  {
+    "userName": "李四",
+    "id": 2,
+    "phone": 13131313133,
+    "hasPay": false,
+    "payId": 1235,
+    "payNum": 1500,
+    "province": "浙江省",
+    "city": "温州市",
+    "area": "乐清市",
+    "password": "123456"
+  }
+]
