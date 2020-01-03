@@ -2,8 +2,10 @@ const express = require('express');
 const router = express.Router();
 const jwt = require("jsonwebtoken")
 const user = require('../models/user').user;
+const test = require('../models/test').test;
 const secret = require('./secret')
 const client = require('../redis/index')
+const filter = require('../util/common').filter
 
 const setToken = (reqParams, expTime) => {
     // 返回token
@@ -39,13 +41,14 @@ router.get('/login', async function (req, res, next) {
         res.send(resData)
         return
     }
+    const tarUseId = result[0].userId
     let created = Math.floor(Date.now() / 1000)
-    const _token = setToken(reqParams, created + 60 * 60 * 168)
+    const _token = setToken(tarUseId, created + 60 * 60 * 168)
     // 在浏览器设置cookie  token
     res.cookie('_usertoken', _token, {domain: ".yqjiajiao.com"})//发送cookie
     // redis设置token
-    client.hset('user', reqParams.userName, _token)
-    resData.data = { userName: reqParams.userName }
+    client.hset('userId', tarUseId, _token)
+    resData.data = { userId: tarUseId }
     resData.code = 200
     resData.message = "登录成功"
     resData.timestamp = Math.round(new Date().getTime() / 1000)
@@ -90,6 +93,8 @@ router.post('/register', async function (req, res, next) {
         let registerSuccess
         try {
             registerSuccess = await user.create(reqParams)
+            result = await user.find({ userName: reqParams.userName })
+            await test.create({ userId: result[0].userId, likeStatus: false })
         } catch (e) {
             console.log(e)
         }
@@ -114,7 +119,7 @@ router.post('/logout', async function (req, res, next) {
     }
     rInfo = jwt.verify(reqParams.token, secret)
     const _token = setToken(rInfo, 0)
-    client.hset('user', rInfo.userName, _token)
+    client.hset('userId', rInfo.userId, _token)
     res.cookie('_usertoken', "", { domain: ".yqjiajiao.com", Expires: 10 })
     // res.clearCookie('_usertoken') // 设置domain的不能直接清除
     resData.code = 200
@@ -141,7 +146,7 @@ router.get('/get-user-info', async function (req, res, next) {
             return
         }
         let rInfo
-        client.hget('user', reqParamsData.userName, function(err, rToken) {
+        client.hget('userId', reqParamsData.userId, function(err, rToken) {
             if(err) throw err
             // redis中的token 解析
             try {
@@ -155,7 +160,7 @@ router.get('/get-user-info', async function (req, res, next) {
             }
         })
             try {
-                result = await user.find({ userName: reqParamsData.userName })
+                result = await user.find({ userId: reqParamsData.userId })
             } catch (e) {
                 resData.data = {}
                 resData.code = 404
@@ -197,7 +202,7 @@ router.get('/get-one-user-info', async function (req, res, next) {
         let reqParamsData
         try {
             // 请求携带的token解析
-            reqParamsData = jwt.verify(reqParams.token, secret)
+            jwt.verify(reqParams.token, secret)
         } catch (e) {
             resData.data = {}
             resData.code = 11021
@@ -208,7 +213,11 @@ router.get('/get-one-user-info', async function (req, res, next) {
         }
 
         try {
-            result = await user.find({ userName: reqParams.userName })
+            result = await user.find({ userId: reqParams.userId }, {
+                _id: 0, __v: 0
+            }).populate({
+                path: 'userId'
+            }).lean({ virtuals: true })
         } catch (e) {
             resData.data = {}
             resData.code = 404
@@ -218,11 +227,12 @@ router.get('/get-one-user-info', async function (req, res, next) {
             return
         }
         if (result.length > 0) {
-            let resultData = {
+
+            resData.data = {
                 userName: result[0].userName,
-                password: result[0].password
+                password: result[0].password,
+                userInfo: filter(result[0].userId)
             }
-            resData.data = resultData
             resData.code = 200
             resData.message = "ok"
             resData.timestamp = Math.round(new Date().getTime() / 1000)
